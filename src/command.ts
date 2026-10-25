@@ -189,37 +189,52 @@ export function registerMemCommand(ctx: any): Promise<void> {
     editor.add({
       name: MEMORY_COMMAND,
       description: "Memória do projeto — /mem help para os subcomandos",
+      // O `execute` de um comando de plugin retorna void: o host descarta o valor.
+      // A saída vai para a sessão como mensagem sintética (sem agendar o modelo).
+      // Ver docs/api-notes.md ("Spike 3").
       execute: async (input: any) => {
+        const sessionID = input?.sessionID
+        let text: string
         try {
-          const { sub, args } = parseSubcommand(input?.prompt?.text ?? "")
-          const root = findProjectRoot(dir) ?? dir
-          const layout = projectLayout(root)
-          const config = readProjectConfig(layout.configFile)
-
-          switch (sub) {
-            case "help":
-              return { content: HELP_TEXT }
-            case "init":
-              return { content: initProject(root) }
-            case "on":
-              return { content: toggleInject(root, true) }
-            case "off":
-              return { content: toggleInject(root, false) }
-            case "show":
-              return { content: showMemory(root) }
-            case "archive":
-              return { content: archiveMemory(root) }
-            case "forget":
-              return { content: forgetMemory(root, args) }
-            case "doctor":
-              return { content: doctorText(root) }
-            default:
-              return { content: `${statusText(root, config)}\n\nUse /mem help para ver os subcomandos.` }
-          }
+          text = buildOutput(input, dir)
         } catch (error) {
-          return { content: `Erro no comando /mem: ${String(error)}` }
+          text = `Erro no comando /mem: ${String(error)}`
+        }
+        try {
+          await ctx.session.synthetic({ sessionID, text, resume: false })
+        } catch {
+          // sem canal de saída: não quebra nada
         }
       },
     })
   })
+}
+
+/** Calcula o texto de saída do comando a partir do subcomando. */
+export function buildOutput(input: any, dir: string): string {
+  const { sub, args } = parseSubcommand(input?.prompt?.text ?? "")
+  const root = findProjectRoot(dir) ?? dir
+  const layout = projectLayout(root)
+  const config = readProjectConfig(layout.configFile)
+
+  switch (sub) {
+    case "help":
+      return HELP_TEXT
+    case "init":
+      return initProject(root)
+    case "on":
+      return toggleInject(root, true)
+    case "off":
+      return toggleInject(root, false)
+    case "show":
+      return showMemory(root)
+    case "archive":
+      return archiveMemory(root)
+    case "forget":
+      return forgetMemory(root, args)
+    case "doctor":
+      return doctorText(root)
+    default:
+      return `${statusText(root, config)}\n\nUse /mem help para ver os subcomandos.`
+  }
 }

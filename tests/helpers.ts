@@ -49,7 +49,10 @@ export function fakeCtx(dir: string, calls: any[], opts: FakeCtxOptions = {}): a
         opts.hooks?.push({ name, handler })
         return { dispose: async () => {} }
       },
-      synthetic: async () => {},
+      synthetic: async (input: any) => {
+        calls.push({ synthetic: input })
+        return { id: "msg_sintetico" }
+      },
       list: async () => ({ data: [] }),
       context: async () => [],
       get: async () => ({}),

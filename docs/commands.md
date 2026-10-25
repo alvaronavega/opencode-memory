@@ -3,6 +3,14 @@
 Um único comando: `/mem`. Todos os subcomandos são executados **pelo host**, sem passar pelo
 modelo — a resposta aparece na hora, sem gasto de token.
 
+A saída do comando entra na conversa como **mensagem sintética** (`ctx.session.synthetic`,
+com `resume: false`): ela aparece no transcript e **não** agenda uma chamada ao modelo, ou
+seja, custa zero token. O `execute` de um comando de plugin retorna `void` — o valor de
+retorno é descartado pelo host, então a saída **tem** de ir por esse canal.
+
+> Slash commands são despachados pelo **TUI**. Em `opencode run "/mem"` (headless) o texto
+> vira prompt comum e o comando não é executado — use o TUI para os subcomandos.
+
 ## `/mem` (padrão)
 
 Estado da memória da pasta atual.
