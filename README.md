@@ -1,5 +1,30 @@
 # opencode-memory
 
+
+
+<p align="center">
+  <img src="docs/banner.svg" alt="opencode-memory — memória por pasta para o OpenCode" width="880">
+</p>
+
+<details>
+<summary>ver o banner em ASCII (terminal)</summary>
+
+```
+╭─────────────────────────────────────────────────────────────────────────────────────────────╮
+│  ███  ████  ████  █   █  ████  ███  ███   ████        █   █ ████  █   █  ███  ████  █   █ │
+│ █   █ █   █ █     ██  █ █     █   █ █  █  █           ██ ██ █     ██ ██ █   █ █   █ █   █ │
+│ █   █ ████  ███   █ █ █ █     █   █ █  █  ███    ███  █ █ █ ███   █ █ █ █   █ ████   ███  │
+│ █   █ █     █     █  ██ █     █   █ █  █  █           █   █ █     █   █ █   █ █  █    █   │
+│  ███  █     ████  █   █  ████  ███  ███   ████        █   █ ████  █   █  ███  █   █   █   │
+│                                                                                             │
+│ memória por pasta para o OpenCode                                                         │
+│ MEMORY.md no projeto · recall no prompt · captura de cada turno                           │
+╰─────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+</details>
+
+
 Memória por pasta para o [OpenCode](https://opencode.ai) — local, determinística e portátil.
 
 Quando você abre o OpenCode num projeto, o agente já sabe o que foi feito ali, o que ficou
@@ -7,14 +32,14 @@ pendente e quais decisões foram tomadas. Sem repetir contexto, sem depender de 
 IA está em uso e sem gastar token com isso.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  C:\AI\meu-projeto\                                          │
-│                                                              │
-│  MEMORY.md            ← a memória (texto puro, versionável)  │
-│  .opencode\                                                 │
-│    memory.json        ← config do projeto                    │
-│    plugins\opencode-memory\   ← o plugin (a pasta viaja)    │
-└──────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│  C:\AI\meu-projeto\                                        │
+│                                                            │
+│  MEMORY.md                     ← a memória (texto puro)    │
+│  .opencode\                                                │
+│    memory.json                 ← config do projeto         │
+│    plugins\opencode-memory\    ← o plugin (a pasta viaja)  │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ## Por que
@@ -49,18 +74,18 @@ O plugin tem dois papéis no mesmo código:
 abrir pasta de projeto
         │
         ▼
-  existe .opencode/plugins/opencode-memory/ ?
-        │                    │
-       não                  sim
-        │                    │
-        ▼                    ▼
-  supervisor: cria      worker: injeta o recall
-  MEMORY.md + config    no system prompt e grava
-  + copia o kit         cada turno no MEMORY.md
-        │                    │
-        └────────┬───────────┘
-                 ▼
-      sessão nova já começa com o contexto
+existe .opencode/plugins/opencode-memory/ ?
+        │                   │
+       não                 sim
+        │                   │
+        ▼                   ▼
+supervisor: cria          worker: injeta o recall
+MEMORY.md + config        no system prompt e grava
++ copia o kit             cada turno no MEMORY.md
+        │                   │
+        └─────────┬──────────┘
+                  ▼
+  sessão nova já começa com o contexto
 ```
 
 ### O que é gravado
@@ -100,7 +125,7 @@ Atividades recentes:
 Contexto do sistema:
 - Node 24 e uv instalados
 
-Se algo novo e não-óbvio for decidido, registre com a tool memory_note.
+Se algo novo e não-óbvio for decidido, registre com a tool memoria.memory_note.
 Para o histórico completo, leia MEMORY.md.
 </project-memory>
 ```
