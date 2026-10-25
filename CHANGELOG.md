@@ -6,6 +6,14 @@ segue [SemVer](https://semver.org/lang/pt-BR/).
 
 ## [Não publicado]
 
+### Corrigido
+
+- A saída do comando `/mem` agora vai por `ctx.session.synthetic({ resume: false })`. O `execute`
+  de um comando de plugin retorna `void` — o host descartava o valor de retorno, e o `/mem`
+  ficava mudo no TUI.
+- `instalar.ps1` remove o `src` de destino antes de copiar (o `Copy-Item -Recurse` aninhava a
+  pasta e deixava uma cópia antiga do plugin em `src/src/`).
+
 ## [0.1.0] — 2026-10-25
 
 Primeira versão pública.

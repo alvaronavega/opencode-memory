@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs"
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
 import {
   appendEntries,
@@ -11,10 +11,28 @@ import {
 /** Acima disso, o arquivo é considerado grande demais para ser reescrito com segurança. */
 export const MAX_MEMORY_BYTES = 512 * 1024
 
-/** Lê o MEMORY.md (texto puro). Devolve "" se não existir. */
-export function readMemoryText(memoryFile: string): string {
+/**
+ * Lê o MEMORY.md (texto puro). Devolve "" se não existir.
+ * Arquivos maiores que `maxBytes` são lidos só em parte: o começo (cabeçalho) e a
+ * cauda (entradas mais recentes). Um MEMORY.md de 50 MB não entra inteiro na memória.
+ */
+export function readMemoryText(memoryFile: string, maxBytes = MAX_MEMORY_BYTES): string {
   try {
-    return readFileSync(memoryFile, "utf8")
+    const stat = statSync(memoryFile)
+    if (stat.size <= maxBytes) return readFileSync(memoryFile, "utf8")
+
+    const headBytes = Math.min(8192, maxBytes)
+    const tailBytes = Math.max(0, maxBytes - headBytes)
+    const fd = openSync(memoryFile, "r")
+    try {
+      const head = Buffer.alloc(headBytes)
+      readSync(fd, head, 0, headBytes, 0)
+      const tail = Buffer.alloc(tailBytes)
+      if (tailBytes > 0) readSync(fd, tail, 0, tailBytes, stat.size - tailBytes)
+      return `${head.toString("utf8")}\n${tail.toString("utf8")}`
+    } finally {
+      closeSync(fd)
+    }
   } catch {
     return ""
   }

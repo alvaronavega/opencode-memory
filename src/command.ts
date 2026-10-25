@@ -78,8 +78,6 @@ function statusText(root: string, config: ProjectConfig): string {
     `Entradas: ${entries.length} | última: ${last} | tamanho: ${size} bytes`,
     `Injeção no prompt: ${config.inject ? "ligada" : "desligada"}`,
     `Limite de entradas: ${config.maxEntries}`,
-    "",
-    "Use /mem help para ver os subcomandos.",
   ].join("\n")
 }
 

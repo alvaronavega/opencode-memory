@@ -29,6 +29,14 @@ test("/mem sem argumento devolve status", async () => {
   cleanup(dir)
 })
 
+test("/mem status não repete a dica do /mem help", async () => {
+  const dir = tempProject()
+  const out = await run("status", dir)
+  const occurrences = out.split("Use /mem help").length - 1
+  assert.equal(occurrences, 1, `a dica aparece ${occurrences} vezes`)
+  cleanup(dir)
+})
+
 test("/mem help devolve a ajuda com todos os subcomandos", async () => {
   const dir = tempProject()
   const out = await run("help", dir)
