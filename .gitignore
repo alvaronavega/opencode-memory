@@ -2,3 +2,9 @@ node_modules/
 *.log
 .DS_Store
 dist/
+
+# O plugin cria estes arquivos na própria pasta quando o repo é aberto no OpenCode.
+# Não versionamos o snapshot do plugin nem a memória local deste repo.
+.opencode/
+MEMORY.md
+MEMORY-arquivo.md
