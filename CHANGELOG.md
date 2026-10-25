@@ -4,7 +4,10 @@ Todas as mudanças relevantes deste projeto são registradas aqui.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o versionamento
 segue [SemVer](https://semver.org/lang/pt-BR/).
 
-## [Não publicado]
+## [0.2.0] — 2026-10-25
+
+Correções da revisão de código: nada do que o usuário escreveu à mão some, sessão em subpasta
+recebe a memória, append concorrente não perde entradas, e o recall não é mais duplicado.
 
 ### Corrigido
 
@@ -65,5 +68,6 @@ Primeira versão pública.
   `AGENTS.md` com o mapa do repo e `docs/` com arquitetura, comandos, config e troubleshooting.
 - **Suíte de testes** com `node --test`, sem dependências (84 testes na primeira versão).
 
-[Não publicado]: https://github.com/alvaronavega/opencode-memory/compare/v0.1.0...HEAD
+[Não publicado]: https://github.com/alvaronavega/opencode-memory/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/alvaronavega/opencode-memory/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alvaronavega/opencode-memory/releases/tag/v0.1.0
