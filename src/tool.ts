@@ -29,9 +29,22 @@ export function registerMemoryNote(ctx: any): Promise<void> {
         additionalProperties: false,
       },
       options: { namespace: "memoria", codemode: true },
-      execute: async (input: any) => {
+      execute: async (input: any, context: any) => {
         try {
-          const root = findProjectRoot(dir) ?? dir
+          // A pasta do projeto vem da sessão (o tool é registrado por instância de
+          // plugin, e várias instâncias podem registrar o mesmo nome).
+          const sessionID = context?.sessionID
+          let root = dir
+          if (sessionID) {
+            try {
+              const session = await ctx.session.get({ sessionID })
+              const sessionDir =
+                (session as any)?.location?.directory ?? (session as any)?.directory ?? (session as any)?.cwd
+              if (sessionDir) root = findProjectRoot(String(sessionDir)) ?? String(sessionDir)
+            } catch {
+              // sem sessão: usa a pasta da instância
+            }
+          }
           const layout = projectLayout(root)
           const config = readProjectConfig(layout.configFile)
           if (!config.enabled) return { content: "A memória está desativada nesta pasta (/mem on)." }
