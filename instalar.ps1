@@ -80,7 +80,10 @@ if ((Test-Path $kitDir) -and -not $Force) {
 
   $srcFrom = Join-Path $sourceDir "src"
   if (Test-Path $srcFrom) {
-    Copy-Item -Recurse -Force $srcFrom (Join-Path $kitDir "src")
+    $srcTo = Join-Path $kitDir "src"
+    # Remove antes: Copy-Item -Recurse aninha a pasta quando o destino já existe.
+    if (Test-Path $srcTo) { Remove-Item -Recurse -Force $srcTo }
+    Copy-Item -Recurse -Force $srcFrom $srcTo
   }
 
   Write-Ok "Plugin copiado."
