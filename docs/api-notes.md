@@ -136,7 +136,11 @@ await ctx.command.transform((editor) => {
   editor.add({
     name: "mem",
     description: "Memória do projeto — /mem help para os subcomandos",
-    execute: async ({ sessionID, prompt, delivery }) => ({ content: "texto" }),
+    // ⚠️ devolve void: o valor de retorno é DESCARTADO pelo host.
+    // A saída tem de ir por ctx.session.synthetic(...) (ver "Spike 3").
+    execute: async ({ sessionID, prompt, delivery }) => {
+      await ctx.session.synthetic({ sessionID, text: "…", resume: false })
+    },
   })
 })
 
@@ -153,7 +157,83 @@ await ctx.tool.transform((editor) => {
 
 - O tool registrado aparece no catálogo como `tools.<namespace>.<name>` (Code Mode) — confirmado:
   a tool de sondagem apareceu como `spike.spike_tool`.
-- O comando registrado não passa pelo modelo: o `execute` roda no host e devolve `{ content }`.
+- O comando registrado não passa pelo modelo: o `execute` roda no host. **Mas o valor de retorno
+  é ignorado** — ver "Spike 3" abaixo (correção do que se acreditava antes).
+
+---
+
+## Spike 3 — o comando de plugin roda no host? (verificado 2026-10-25, OpenCode 2.1.4)
+
+**Resposta: sim, mas só quando o *cliente* despacha o slash command.** O `execute` roda no host,
+sem passar pelo modelo — e o que ele devolve é **descartado**.
+
+### Contrato real do `editor.add` (fonte: `packages/plugin/src/promise/command.ts`)
+
+```ts
+interface CommandDefinition {
+  name: string
+  description?: string
+  execute: (input: CommandInvocation) => Promise<void>   // ← void
+}
+interface CommandInvocation {
+  sessionID: string
+  prompt: { text: string; files?; agents?; skills? }
+  delivery: "steer" | …
+}
+```
+
+- O chamador é `Command.execute({ name, invocation })` → `definition.execute(invocation)`; o
+  resultado é descartado (`Effect<void, unknown>`).
+- **`execute` NÃO devolve `{ content }`** — a nota anterior neste arquivo estava errada.
+  A saída do `/mem` tem de ir por `ctx.session.synthetic(...)` (ou o comando escreve arquivo/log).
+
+### Quem despacha o slash command (e quem não)
+
+| cliente | o que acontece com "/mem" |
+|---|---|
+| TUI / app | confere se o nome existe na lista da location (`GET /api/command`) → chama `POST /api/session/{id}/command` → o host executa o callback. **Não passa pelo modelo.** |
+| `opencode run "/mem"` (headless) | o texto vai como prompt (`POST /api/session/{id}/prompt`). **Não há dispatch**: o modelo recebe "/mem" literal. |
+
+Evidência: `packages/tui/src/component/prompt/index.tsx` chama `client.api.session.command({...})`
+quando `slashHead && isCommand`; `packages/cli/src/run/noninteractive.ts` não menciona `command`
+nenhuma vez (medido: prompt "/spikeprobe" → modelo chamado, 8.925 tokens de input, callback nunca executou).
+
+### Endpoints (OpenAPI do servidor)
+
+- `GET /api/command` → `{ location, data: [{ name, description }] }` — **por location**.
+- `POST /api/session/{sessionID}/command`
+  - body: `{ name: string, text: string, files?, agents?, skills?, delivery? }` (`name` e `text` obrigatórios)
+  - `204` = callback executado · `404` = `CommandNotFoundError` (nome não registrado **naquela location**) · `500` = `CommandExecutionError`
+  - `text` vira `invocation.prompt.text`; `delivery` default `"steer"`.
+- `POST /api/session/{sessionID}/synthetic`
+  - body: `{ text: string, description?, metadata?, delivery?, resume? }`
+  - "Durably admit synthetic session input and schedule execution unless resume is false".
+  - Com `resume: false` a mensagem é admitida **sem** agendar o loop do modelo (tokens = 0) e fica
+    na inbox (`GET /api/session/{id}/inbox`), com `type: "synthetic"`.
+
+### Medições (pasta spikeproj, 2026-10-25)
+
+| cenário | resultado |
+|---|---|
+| `POST /api/session/{id}/command {name:"spikeprobe", text:"…"}` | **204**; callback executou (`input={"sessionID":…,"prompt":{"text":"…"},"delivery":"steer"}`); tokens 0; custo 0; `GET /message` = `[]` |
+| callback chamando `ctx.session.synthetic({sessionID, text, description, resume:false})` | retornou `{id:"msg_…", type:"synthetic", payload:{text,description}}`; tokens 0; item visível em `GET /api/session/{id}/inbox` |
+| `POST /api/session/{id}/prompt {text:"/spikeprobe"}` | **modelo chamado** (8.925 in / 152 out); callback **não** executou; "/spikeprobe" literal no transcript |
+
+### Armadilhas novas
+
+7. **`execute` não devolve nada para o usuário.** Retornar `{ content }` é ignorado em silêncio —
+   o comando aparece no palette, roda, e não mostra nada. A saída tem de ir por
+   `ctx.session.synthetic({ sessionID, text, resume: false })`.
+8. **O registro de comandos é por location.** O `setup` roda uma vez por location; `GET /api/command`
+   responde pela location do cliente; `POST /api/session/{id}/command` resolve o callback na location
+   da sessão. Comando registrado em uma location não existe em outra → `404 CommandNotFoundError`.
+9. **`opencode run` não despacha slash commands** (só o TUI/app). Em headless, o comando precisa ser
+   uma tool (o modelo chama) — não um slash command.
+10. **A API do servidor exige autenticação**: Basic auth, usuário `opencode`, senha em
+    `~/.config/opencode/service.json`. Sem isso → `{"_tag":"UnauthorizedError"}`.
+11. **`opencode api -d` não envia JSON** (aspas se perdem → `Expected a valid JSON body`).
+    Workaround: `curl -u opencode:<senha> --data-binary @arquivo.json`.
+12. **A URL do servidor vem de `GET /api/info`** (`urls[0]`), não de uma porta fixa.
   **Confirmado em execução real**: via `POST /api/session/{id}/command`, o `execute` foi chamado com
   `input = { sessionID, prompt: { text }, delivery }` e **nenhuma requisição ao modelo foi feita**.
 - O comando aparece em `GET /api/command` junto com os nativos (`init`, `review`, …).
