@@ -78,12 +78,20 @@ if ((Test-Path $kitDir) -and -not $Force) {
     }
   }
 
+  # Copia o src arquivo por arquivo: Copy-Item -Recurse aninha a pasta quando o
+  # destino já existe, e uma cópia fundida deixa arquivos antigos no lugar.
   $srcFrom = Join-Path $sourceDir "src"
   if (Test-Path $srcFrom) {
-    $srcTo = Join-Path $kitDir "src"
-    # Remove antes: Copy-Item -Recurse aninha a pasta quando o destino já existe.
-    if (Test-Path $srcTo) { Remove-Item -Recurse -Force $srcTo }
-    Copy-Item -Recurse -Force $srcFrom $srcTo
+    $copied = 0
+    foreach ($item in Get-ChildItem $srcFrom -Recurse -File) {
+      $relative = $item.FullName.Substring($srcFrom.Length).TrimStart("\", "/")
+      $to = Join-Path (Join-Path $kitDir "src") $relative
+      $parent = Split-Path -Parent $to
+      if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+      Copy-Item -Force $item.FullName $to
+      $copied++
+    }
+    Write-Info "src: $copied arquivo(s) copiado(s)"
   }
 
   Write-Ok "Plugin copiado."

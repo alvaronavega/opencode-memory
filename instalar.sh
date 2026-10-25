@@ -66,7 +66,14 @@ else
   for file in index.ts package.json README.md; do
     [ -f "$SOURCE_DIR/$file" ] && cp "$SOURCE_DIR/$file" "$KIT_DIR/$file"
   done
-  [ -d "$SOURCE_DIR/src" ] && cp -r "$SOURCE_DIR/src" "$KIT_DIR/src"
+  # Copia arquivo por arquivo: `cp -r` num destino existente mistura diretórios.
+  if [ -d "$SOURCE_DIR/src" ]; then
+    (cd "$SOURCE_DIR" && find src -type f -print0 | while IFS= read -r -d '' f; do
+      mkdir -p "$KIT_DIR/$(dirname "$f")"
+      cp "$SOURCE_DIR/$f" "$KIT_DIR/$f"
+    done)
+    info "src: $(find "$KIT_DIR/src" -type f 2>/dev/null | wc -l | tr -d ' ') arquivo(s) copiado(s)"
+  fi
   ok "Plugin copiado."
 fi
 
