@@ -231,8 +231,9 @@ nenhuma vez (medido: prompt "/spikeprobe" → modelo chamado, 8.925 tokens de in
    uma tool (o modelo chama) — não um slash command.
 10. **A API do servidor exige autenticação**: Basic auth, usuário `opencode`, senha em
     `~/.config/opencode/service.json`. Sem isso → `{"_tag":"UnauthorizedError"}`.
-11. **`opencode api -d` não envia JSON** (aspas se perdem → `Expected a valid JSON body`).
-    Workaround: `curl -u opencode:<senha> --data-binary @arquivo.json`.
+11. **`opencode api --data` em PowerShell 5.1**: o PS remove as aspas duplas do argumento, e o JSON
+    quebra (`Expected a valid JSON body`). Escapar com `\"` funciona; alternativa mais robusta:
+    `curl -u opencode:<senha> --data-binary @arquivo.json`.
 12. **A URL do servidor vem de `GET /api/info`** (`urls[0]`), não de uma porta fixa.
   **Confirmado em execução real**: via `POST /api/session/{id}/command`, o `execute` foi chamado com
   `input = { sessionID, prompt: { text }, delivery }` e **nenhuma requisição ao modelo foi feita**.
