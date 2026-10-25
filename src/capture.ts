@@ -62,10 +62,29 @@ function looksLikeError(text: string): boolean {
 }
 
 /**
+ * Torna o caminho relativo à raiz do projeto quando ele está dentro dela.
+ * A memória não deve carregar caminhos absolutos da máquina (a pasta é portátil).
+ */
+export function relativizePath(path: string, root?: string): string {
+  const raw = String(path ?? "")
+  if (!root || !raw) return raw
+  const normalizedRoot = root.replace(/[\\/]+$/, "")
+  if (!normalizedRoot) return raw
+  const lowerRoot = normalizedRoot.toLowerCase()
+  const lowerRaw = raw.toLowerCase()
+  if (lowerRaw === lowerRoot) return raw
+  if (!lowerRaw.startsWith(lowerRoot + "\\") && !lowerRaw.startsWith(lowerRoot + "/")) return raw
+  return raw.slice(normalizedRoot.length).replace(/^[\\/]+/, "")
+}
+
+/**
  * Extrai os fatos de um turno a partir do transcript do OpenCode.
  * Formato do transcript: `{ messages: [{ role, content: [partes] }] }`.
+ *
+ * `root` (opcional) é a raiz do projeto: caminhos de arquivo dentro dela são
+ * gravados relativos ao projeto.
  */
-export function factsFromTranscript(transcript: unknown): TurnFacts {
+export function factsFromTranscript(transcript: unknown, root?: string): TurnFacts {
   const facts: TurnFacts = { prompt: "", files: [], commands: [] }
   const messages = (transcript as { messages?: RawMessage[] })?.messages
   if (!Array.isArray(messages)) return facts
@@ -97,7 +116,7 @@ export function factsFromTranscript(transcript: unknown): TurnFacts {
       const name = (part.name ?? "").toLowerCase()
       if (FILE_TOOLS.has(name)) {
         const path = (input.path ?? input.filePath ?? input.file) as string | undefined
-        if (typeof path === "string" && path) files.push(path)
+        if (typeof path === "string" && path) files.push(relativizePath(path, root))
       }
       if (COMMAND_TOOLS.has(name)) {
         const command = (input.command ?? input.cmd ?? input.script) as string | undefined

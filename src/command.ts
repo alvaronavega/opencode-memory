@@ -1,17 +1,19 @@
-import { existsSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync } from "node:fs"
+import { randomUUID } from "node:crypto"
 import { join } from "node:path"
 import { projectLayout } from "./layout.ts"
 import { readProjectConfig, writeProjectConfig, type ProjectConfig } from "./config.ts"
-import { detectProjectName, findProjectRoot } from "./detect.ts"
+import { detectProjectName, findProjectRoot, isForbiddenRoot } from "./detect.ts"
 import { copyKit, hasLocalKit } from "./kit.ts"
 import {
+  archiveEntries,
   ensureMemoryFile,
   memorySize,
   readEntries,
   readMemoryText,
   writeMemoryAtomic,
 } from "./store.ts"
-import { buildMemoryFile, parseMemoryFile, trimEntries } from "./memory-file.ts"
+import { trimEntries } from "./memory-file.ts"
 
 export const MEMORY_COMMAND = "mem"
 
@@ -81,16 +83,26 @@ function statusText(root: string, config: ProjectConfig): string {
   ].join("\n")
 }
 
-function initProject(root: string): string {
+function initProject(root: string, args: string): string {
   const layout = projectLayout(root)
   const project = detectProjectName(root)
   const notes: string[] = []
+
+  // A home e pastas de dependência/sistema nunca recebem memória.
+  if (isForbiddenRoot(root) && !args.includes("--force")) {
+    return [
+      `Recusado: ${root} não pode receber memória.`,
+      "",
+      "A pasta é a home do usuário ou uma pasta de dependência/sistema.",
+      "Escolha uma pasta de projeto, ou use /mem init --force se realmente quiser.",
+    ].join("\n")
+  }
 
   const created = ensureMemoryFile(layout.memoryFile, project)
   notes.push(created ? `MEMORY.md criado (${layout.memoryFile})` : `MEMORY.md já existia (não foi sobrescrito)`)
 
   const config = readProjectConfig(layout.configFile)
-  const withProject: ProjectConfig = { ...config, project: config.project || project }
+  const withProject: ProjectConfig = { ...config, project: config.project || project, enabled: true, inject: true }
   writeProjectConfig(layout.configFile, withProject)
   notes.push(`config: ${layout.configFile}`)
 
@@ -103,8 +115,14 @@ function initProject(root: string): string {
 function toggleInject(root: string, on: boolean): string {
   const layout = projectLayout(root)
   const config = readProjectConfig(layout.configFile)
-  const updated: ProjectConfig = { ...config, inject: on, enabled: true, project: config.project || detectProjectName(root) }
+  const updated: ProjectConfig = {
+    ...config,
+    inject: on,
+    enabled: true,
+    project: config.project || detectProjectName(root),
+  }
   writeProjectConfig(layout.configFile, updated)
+  if (on) ensureMemoryFile(layout.memoryFile, updated.project)
   return on
     ? "Injeção da memória ligada nesta pasta."
     : "Injeção da memória desligada nesta pasta (o arquivo continua existindo)."
@@ -125,11 +143,7 @@ function archiveMemory(root: string): string {
   const current = readMemoryText(layout.memoryFile)
   const { content, removed } = trimEntries(current, config.maxEntries)
   if (removed.length === 0) return `Nada a arquivar: o MEMORY.md já está dentro do limite (${config.maxEntries}).`
-  const archiveFile = join(layout.dir, "MEMORY-arquivo.md")
-  const archiveExisting = existsSync(archiveFile) ? readMemoryText(archiveFile) : ""
-  const archiveEntries = removed.map((entry) => `- [${entry.ts}] ${entry.kind} — "${entry.text}"`)
-  const header = archiveExisting ? archiveExisting.trimEnd() + "\n" : "# Arquivo da memória do projeto\n\n"
-  writeFileSync(archiveFile, `${header}${archiveEntries.join("\n")}\n`, "utf8")
+  const archiveFile = archiveEntries(layout.memoryFile, removed) ?? join(layout.dir, "MEMORY-arquivo.md")
   writeMemoryAtomic(layout.memoryFile, content)
   return `${removed.length} entrada(s) movida(s) para ${archiveFile}.`
 }
@@ -140,22 +154,29 @@ function forgetMemory(root: string, args: string): string {
     return [
       "Isso apaga a memória desta pasta:",
       `- ${layout.memoryFile}`,
-      `- ${layout.configFile}`,
       `- ${layout.kitDir}`,
+      "",
+      "A pasta também será desativada (o config fica com enabled: false),",
+      "para que a memória não volte sozinha na próxima sessão.",
       "",
       "Para confirmar: /mem forget --yes",
     ].join("\n")
   }
   const removed: string[] = []
-  for (const path of [layout.memoryFile, layout.configFile, layout.kitDir]) {
+  for (const path of [layout.memoryFile, layout.kitDir]) {
     if (existsSync(path)) {
       rmSync(path, { recursive: true, force: true })
       removed.push(path)
     }
   }
-  return removed.length > 0
-    ? `Removido: ${removed.join(", ")}`
-    : "Não havia nada de memória nesta pasta."
+  // Opt-out: sem isso o supervisor global recriaria tudo na sessão seguinte.
+  const config = readProjectConfig(layout.configFile)
+  writeProjectConfig(layout.configFile, { ...config, enabled: false, inject: false })
+  return [
+    removed.length > 0 ? `Removido: ${removed.join(", ")}` : "Não havia nada de memória nesta pasta.",
+    `Memória desativada nesta pasta (${layout.configFile}).`,
+    "Para reativar: /mem on",
+  ].join("\n")
 }
 
 function doctorText(root: string): string {
@@ -171,8 +192,13 @@ function doctorText(root: string): string {
     `- limite de entradas: ${config.maxEntries}`,
   ]
   try {
-    writeFileSync(join(layout.dir, ".opencode-memory-check.tmp"), "ok", "utf8")
-    rmSync(join(layout.dir, ".opencode-memory-check.tmp"), { force: true })
+    // Arquivo temporário dentro de .opencode/, com nome único: a raiz do
+    // projeto não fica poluidada se o processo morrer no meio.
+    const checkDir = join(layout.dir, ".opencode")
+    mkdirSync(checkDir, { recursive: true })
+    const checkFile = join(checkDir, `.memory-check-${process.pid}-${randomUUID()}.tmp`)
+    writeFileSync(checkFile, "ok", "utf8")
+    rmSync(checkFile, { force: true })
     lines.push("- escrita na pasta: ok")
   } catch {
     lines.push("- escrita na pasta: FALHOU (sem permissão)")
@@ -219,7 +245,7 @@ export function buildOutput(input: any, dir: string): string {
     case "help":
       return HELP_TEXT
     case "init":
-      return initProject(root)
+      return initProject(root, args)
     case "on":
       return toggleInject(root, true)
     case "off":

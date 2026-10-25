@@ -17,8 +17,12 @@ export interface ParsedMemory {
   entries: MemoryEntry[]
   /** Linhas da seção "## Registro" que não seguem o formato (preservadas no rewrite). */
   loose: string[]
+  /** Seções desconhecidas entre "## Registro" e "## Contexto do sistema" (preservadas). */
+  extra: string
   /** Corpo da seção "## Contexto do sistema". */
   context: string
+  /** Conteúdo depois da seção de contexto (preservado). */
+  after: string
 }
 
 export const MEMORY_MARKER = "<!-- opencode-memory:v1 -->"
@@ -82,27 +86,36 @@ function parseEntryLine(line: string): MemoryEntry | undefined {
   return entry
 }
 
-function sectionBody(content: string, heading: string): { before: string; body: string } | undefined {
+function findSection(
+  content: string,
+  heading: string,
+): { before: string; body: string; after: string; start: number; bodyStart: number } | undefined {
   const index = content.indexOf(heading)
   if (index === -1) return undefined
   const before = content.slice(0, index)
-  const after = content.slice(index + heading.length)
-  const nextHeading = after.search(/\n##\s/)
-  const body = nextHeading === -1 ? after : after.slice(0, nextHeading)
-  return { before, body }
+  const bodyStart = index + heading.length
+  const rest = content.slice(bodyStart)
+  const nextHeading = rest.search(/\n##\s/)
+  const body = nextHeading === -1 ? rest : rest.slice(0, nextHeading)
+  const after = nextHeading === -1 ? "" : rest.slice(nextHeading + 1)
+  return { before, body, after, start: index, bodyStart }
 }
 
 /** Lê o arquivo de memória sem nunca lançar: texto fora do formato vira `loose`. */
 export function parseMemoryFile(content: string): ParsedMemory {
   const text = String(content ?? "")
-  const registro = sectionBody(text, REGISTRO_HEADING)
-  const contexto = sectionBody(text, CONTEXT_HEADING)
+  const registro = findSection(text, REGISTRO_HEADING)
+  const contexto = findSection(text, CONTEXT_HEADING)
 
-  const header = registro ? registro.before : contexto ? contexto.before : text
   const entries: MemoryEntry[] = []
   const loose: string[] = []
+  let header = text
+  let extra = ""
+  let context = ""
+  let after = ""
 
   if (registro) {
+    header = registro.before
     for (const line of registro.body.split("\n")) {
       const trimmed = line.trim()
       if (!trimmed) continue
@@ -110,37 +123,73 @@ export function parseMemoryFile(content: string): ParsedMemory {
       if (entry) entries.push(entry)
       else loose.push(trimmed)
     }
-  }
-
-  let context = ""
-  if (contexto) {
+    if (contexto && contexto.start > registro.start) {
+      extra = text.slice(registro.bodyStart + registro.body.length, contexto.start)
+      context = contexto.body
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .join("\n")
+      after = contexto.after
+    } else {
+      extra = registro.after
+    }
+  } else if (contexto) {
+    header = contexto.before
     context = contexto.body
       .split("\n")
       .filter((line) => line.trim() !== "")
       .join("\n")
+    after = contexto.after
   }
 
   const projectMatch = /^#\s*Memória do projeto:\s*(.*)$/m.exec(header)
   const project = projectMatch ? projectMatch[1].trim() : "projeto"
 
-  return { project, header, entries, loose, context }
+  return { project, header, entries, loose, extra, context, after }
+}
+
+/**
+ * Monta o arquivo preservando tudo que o usuário escreveu à mão:
+ * cabeçalho, seções desconhecidas e conteúdo depois do contexto.
+ */
+export function renderMemory(
+  project: string,
+  entries: MemoryEntry[],
+  context: string,
+  loose: string[] = [],
+  parts: { header?: string; extra?: string; after?: string } = {},
+): string {
+  const header = parts.header ?? `# Memória do projeto: ${project}\n\n${MEMORY_MARKER}\n\n`
+  const out: string[] = []
+  out.push(header.replace(/\s+$/, ""))
+  out.push("")
+  out.push(REGISTRO_HEADING)
+  for (const line of loose) out.push(line)
+  for (const entry of entries) out.push(formatEntry(entry))
+  if (parts.extra && parts.extra.trim()) {
+    out.push("")
+    out.push(parts.extra.trim())
+  }
+  out.push("")
+  out.push(CONTEXT_HEADING)
+  if (context.trim()) out.push(context.trim())
+  if (parts.after && parts.after.trim()) {
+    out.push("")
+    out.push(parts.after.trim())
+  }
+  out.push("")
+  return out.join("\n")
 }
 
 /** Monta o arquivo completo a partir das partes. */
-export function buildMemoryFile(project: string, entries: MemoryEntry[], context: string, loose: string[] = []): string {
-  const lines: string[] = []
-  lines.push(`# Memória do projeto: ${project}`)
-  lines.push("")
-  lines.push(MEMORY_MARKER)
-  lines.push("")
-  lines.push(REGISTRO_HEADING)
-  for (const line of loose) lines.push(line)
-  for (const entry of entries) lines.push(formatEntry(entry))
-  lines.push("")
-  lines.push(CONTEXT_HEADING)
-  if (context.trim()) lines.push(context.trim())
-  lines.push("")
-  return lines.join("\n")
+export function buildMemoryFile(
+  project: string,
+  entries: MemoryEntry[],
+  context: string,
+  loose: string[] = [],
+  parts: { header?: string; extra?: string; after?: string } = {},
+): string {
+  return renderMemory(project, entries, context, loose, parts)
 }
 
 /** Acrescenta entradas ao final do log, sem duplicar e preservando o que o usuário escreveu à mão. */
@@ -150,12 +199,11 @@ export function appendEntries(content: string, entries: MemoryEntry[]): string {
   const existing = new Set(parsed.entries.map((entry) => formatEntry(entry)))
   const fresh = entries.filter((entry) => !existing.has(formatEntry(entry)))
   if (fresh.length === 0) return content
-  return buildMemoryFile(
-    parsed.project,
-    [...parsed.entries, ...fresh],
-    parsed.context,
-    parsed.loose,
-  )
+  return renderMemory(parsed.project, [...parsed.entries, ...fresh], parsed.context, parsed.loose, {
+    header: parsed.header,
+    extra: parsed.extra,
+    after: parsed.after,
+  })
 }
 
 /** Mantém no máximo `max` entradas; devolve as removidas. */
@@ -165,7 +213,11 @@ export function trimEntries(content: string, max: number): { content: string; re
   const removed = parsed.entries.slice(0, parsed.entries.length - max)
   const kept = parsed.entries.slice(parsed.entries.length - max)
   return {
-    content: buildMemoryFile(parsed.project, kept, parsed.context, parsed.loose),
+    content: renderMemory(parsed.project, kept, parsed.context, parsed.loose, {
+      header: parsed.header,
+      extra: parsed.extra,
+      after: parsed.after,
+    }),
     removed,
   }
 }
@@ -173,7 +225,11 @@ export function trimEntries(content: string, max: number): { content: string; re
 /** Substitui o bloco "## Contexto do sistema". */
 export function upsertContext(content: string, context: string): string {
   const parsed = parseMemoryFile(content)
-  return buildMemoryFile(parsed.project, parsed.entries, context, parsed.loose)
+  return renderMemory(parsed.project, parsed.entries, context, parsed.loose, {
+    header: parsed.header,
+    extra: parsed.extra,
+    after: parsed.after,
+  })
 }
 
 /** Cauda do arquivo (evita ler megabytes em memória). */

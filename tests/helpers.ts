@@ -2,18 +2,30 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-export interface FakeCtxOptions {
-  hooks?: { name: string; handler: (...args: any[]) => any }[]
-  toolHandlers?: any[]
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+export interface FakeCtxOptions {  hooks?: { name: string; handler: (...args: any[]) => any }[]
+  /** Eventos que o `ctx.event.subscribe()` vai entregar. */
+  events?: any[]
+  /** O que `ctx.session.get()` devolve para a sessão. */
+  session?: any
+  /** ID do projeto da location (o host resolve; o plugin compara). */
+  projectID?: string
 }
 
 /**
  * ctx falso: registra o que o plugin registra, sem precisar do OpenCode.
- * `calls` recebe strings ("command", "tool") e as definições registradas.
+ * `calls` recebe strings ("command", "tool"), as definições registradas e as
+ * mensagens sintéticas ({ synthetic: input }).
  */
 export function fakeCtx(dir: string, calls: any[], opts: FakeCtxOptions = {}): any {
+  const projectID = opts.projectID ?? `proj-${dir}`
+  const events = opts.events ?? []
   return {
-    location: { directory: dir, project: { id: "proj", directory: dir, canonical: dir } },
+    location: {
+      directory: dir,
+      project: { id: projectID, directory: dir, canonical: dir },
+    },
     options: {},
     command: {
       transform: async (fn: any) => {
@@ -55,11 +67,26 @@ export function fakeCtx(dir: string, calls: any[], opts: FakeCtxOptions = {}): a
       },
       list: async () => ({ data: [] }),
       context: async () => [],
-      get: async () => ({}),
+      get: async () => opts.session ?? { projectID, location: { directory: dir } },
     },
     event: {
-      subscribe: () => ({
-        async *[Symbol.asyncIterator]() {},
+      subscribe: ({ signal }: any = {}) => ({
+        async *[Symbol.asyncIterator]() {
+          let i = 0
+          let idle = 0
+          while (!signal?.aborted) {
+            if (i < events.length) {
+              idle = 0
+              yield events[i++]
+              await sleep(5)
+              continue
+            }
+            idle++
+            // Para sozinho depois de ~1s sem evento: o teste não pode ficar preso.
+            if (idle > 200) return
+            await sleep(5)
+          }
+        },
       }),
     },
     storage: {

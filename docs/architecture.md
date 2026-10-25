@@ -89,8 +89,13 @@ não perde texto.
 ## Escrita
 
 - Toda escrita passa por `src/store.ts`.
-- Escrita atômica: grava `<arquivo>.tmp` e faz `rename`. Duas instâncias do OpenCode na mesma
-  pasta não deixam o arquivo pela metade.
+- Escrita atômica: grava num `.tmp` **exclusivo por escritor** (`<arquivo>.<pid>.<uuid>.tmp`) e faz
+  `rename`. O arquivo nunca fica pela metade.
+- O read-modify-write é serializado por um lock de arquivo (`<arquivo>.lock`), para que duas
+  instâncias do OpenCode na mesma pasta **não percam entradas** (o append de uma não apaga o da outra).
+- O que sai do limite de entradas não some: vai para `MEMORY-arquivo.md`.
+- O texto escrito à mão pelo usuário é preservado: o rewrite só substitui o corpo da seção
+  `## Registro`; cabeçalho, seções extras e conteúdo depois do contexto continuam no arquivo.
 - Arquivo acima de 512 KB **não** é reescrito: a memória é preservada, mas a automação para.
   (É um `MEMORY.md` escrito à mão e gigante — o caso raro.)
 

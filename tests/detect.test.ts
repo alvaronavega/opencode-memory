@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs"
 import { tmpdir, homedir } from "node:os"
 import { join } from "node:path"
-import { isProjectDir, isExcludedPath, findProjectRoot, detectProjectName } from "../src/detect.ts"
+import { isProjectDir, isExcludedPath, findProjectRoot, detectProjectName, isForbiddenRoot } from "../src/detect.ts"
 
 test("home do usuário nunca é projeto", () => {
   assert.equal(isProjectDir(homedir(), homedir()), false)
@@ -59,4 +59,20 @@ test("findProjectRoot devolve undefined fora de projeto", () => {
 test("detectProjectName usa o basename e nunca fica vazio", () => {
   assert.equal(detectProjectName(join("/w", "meu-projeto")), "meu-projeto")
   assert.equal(detectProjectName("/"), "projeto")
+})
+
+// --- I4: a home e as pastas de sistema nunca podem receber memória ---
+
+test("isForbiddenRoot barra a home do usuário", () => {
+  assert.equal(isForbiddenRoot("/home/u", "/home/u"), true)
+})
+
+test("isForbiddenRoot barra pastas de dependência e de sistema", () => {
+  assert.equal(isForbiddenRoot(join("/w", "proj", "node_modules", "pkg"), "/home/u"), true)
+  assert.equal(isForbiddenRoot(join("/w", "proj", ".venv"), "/home/u"), true)
+  assert.equal(isForbiddenRoot(join("C:", "Windows"), "/home/u"), true)
+})
+
+test("isForbiddenRoot deixa passar um projeto normal", () => {
+  assert.equal(isForbiddenRoot(join("/w", "proj"), "/home/u"), false)
 })

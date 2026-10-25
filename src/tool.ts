@@ -6,6 +6,9 @@ import type { MemoryKind } from "./memory-file.ts"
 
 export const MEMORY_NOTE_TOOL = "memory_note"
 
+/** Tipos aceitos pela tool (um tipo inválido viraria lixo permanente no arquivo). */
+const ALLOWED_KINDS: readonly MemoryKind[] = ["nota", "decisao", "pendencia"]
+
 /** Registra a tool `memory_note`: o modelo escreve nota/decisão/pendência na memória do projeto. */
 export function registerMemoryNote(ctx: any): Promise<void> {
   const dir: string = ctx?.location?.directory ?? process.cwd()
@@ -49,11 +52,17 @@ export function registerMemoryNote(ctx: any): Promise<void> {
           const config = readProjectConfig(layout.configFile)
           if (!config.enabled) return { content: "A memória está desativada nesta pasta (/mem on)." }
 
-          const kind = (input?.tipo ?? "nota") as MemoryKind
+          const rawKind = String(input?.tipo ?? "nota").trim()
+          const kind = rawKind as MemoryKind
+          if (!ALLOWED_KINDS.includes(kind)) {
+            return {
+              content: `Nada registrado: tipo inválido "${rawKind}". Use um de: ${ALLOWED_KINDS.join(", ")}.`,
+            }
+          }
           const text = String(input?.texto ?? "").trim()
           if (!text) return { content: "Nada registrado: o texto estava vazio." }
 
-          const written = appendToMemory(
+          const written = await appendToMemory(
             layout.memoryFile,
             config.project || detectProjectName(root),
             [{ ts: new Date().toISOString(), kind, text }],

@@ -8,11 +8,36 @@ segue [SemVer](https://semver.org/lang/pt-BR/).
 
 ### Corrigido
 
+- **O texto escrito à mão no `MEMORY.md` não é mais apagado.** O rewrite só substitui o corpo da
+  seção `## Registro`; cabeçalho, seções desconhecidas e o conteúdo depois de
+  `## Contexto do sistema` são preservados.
+- **Sessão em subpasta do projeto passa a receber a memória** (antes, nem recebia recall nem
+  era capturada). A pertenciação agora é comparada por identidade de projeto (`projectID` do
+  host), com a raiz do projeto como alternativa.
+- **Append concorrente não perde mais entradas.** A escrita usa um `.tmp` exclusivo por escritor
+  (`<arquivo>.<pid>.<uuid>.tmp`) e um lock de arquivo: dois processos na mesma pasta não apagam
+  um o turno do outro.
+- **O recall não é mais duplicado** quando o plugin global e o local carregam juntos na mesma
+  sessão (o bloco `<project-memory>` é injetado uma vez só).
+- **Leitura do `MEMORY.md` limitada a 512 KB** (cabeçalho + cauda): um arquivo gigante não é
+  carregado inteiro na memória.
+- **`/mem forget --yes` agora desativa mesmo a memória** (grava `"enabled": false` no config do
+  projeto) — antes o supervisor global recriava tudo na sessão seguinte.
+- **`/mem init` recusa a home do usuário e pastas de dependência/sistema** (`--force` ignora).
+- O `/mem doctor` escreve o arquivo de teste dentro de `.opencode/`, com nome único, em vez de
+  poluir a raiz do projeto.
+- A tool `memoria.memory_note` **rejeita um `tipo` inválido** (viraria lixo permanente no
+  arquivo) e o recall cita o nome invocável da tool (`memoria.memory_note`).
+- Caminhos absolutos gravados pela captura são relativizados à raiz do projeto.
+- Bytes de controle literais no `src/detect.ts` viraram escapes (`[\x00-\x1f\x7f]`): o arquivo
+  deixa de ser tratado como binário pelo git.
 - A saída do comando `/mem` agora vai por `ctx.session.synthetic({ resume: false })`. O `execute`
   de um comando de plugin retorna `void` — o host descartava o valor de retorno, e o `/mem`
   ficava mudo no TUI.
 - `instalar.ps1` remove o `src` de destino antes de copiar (o `Copy-Item -Recurse` aninhava a
   pasta e deixava uma cópia antiga do plugin em `src/src/`).
+- `instalar.ps1` e `instalar.sh` copiam o `src` arquivo por arquivo: uma cópia fundida deixava
+  arquivos antigos no lugar.
 
 ## [0.1.0] — 2026-10-25
 

@@ -100,3 +100,74 @@ test("formatEntry sanitiza texto com aspas e quebra de linha", () => {
   assert.ok(!line.includes("\n"))
   assert.ok(line.includes("arquivos: a.ts"))
 })
+
+// --- C1: nada do que o usuário escreveu à mão pode ser apagado no rewrite ---
+
+const MANUALO = [
+  "# Memória do projeto: proj",
+  "",
+  "<!-- opencode-memory:v1 -->",
+  "",
+  "NOTA MANUAL DO USUARIO: leia isto antes de mexer",
+  "",
+  "## Registro",
+  "",
+  "## Decisoes",
+  "",
+  "- 2026-10-01: usamos X em vez de Y",
+  "",
+  "## Contexto do sistema",
+  "- Node 22",
+  "",
+  "## Rodape",
+  "",
+  "nota final do arquivo",
+  "",
+].join("\n")
+
+test("append preserva o texto manual escrito acima do Registro", () => {
+  const out = appendEntries(MANUALO, [entrada("t1", "novo turno")])
+  assert.ok(out.includes("NOTA MANUAL DO USUARIO"), "o texto manual acima do Registro sumiu")
+})
+
+test("append preserva seções desconhecidas entre Registro e Contexto", () => {
+  const out = appendEntries(MANUALO, [entrada("t1", "novo turno")])
+  assert.ok(out.includes("## Decisoes"), "a seção extra sumiu")
+  assert.ok(out.includes("usamos X em vez de Y"), "o conteúdo da seção extra sumiu")
+})
+
+test("append preserva o conteúdo depois da seção de contexto", () => {
+  const out = appendEntries(MANUALO, [entrada("t1", "novo turno")])
+  assert.ok(out.includes("## Rodape"), "o rodapé sumiu")
+  assert.ok(out.includes("nota final do arquivo"))
+})
+
+test("append preserva o contexto do sistema", () => {
+  const out = appendEntries(MANUALO, [entrada("t1", "novo turno")])
+  assert.ok(out.includes("- Node 22"))
+})
+
+test("append ainda registra a entrada nova no meio do arquivo manual", () => {
+  const out = appendEntries(MANUALO, [entrada("t1", "novo turno")])
+  const parsed = parseMemoryFile(out)
+  assert.equal(parsed.entries.length, 1)
+  assert.equal(parsed.entries[0].text, "novo turno")
+})
+
+test("trimEntries preserva o texto manual e as seções extras", () => {
+  const many = Array.from({ length: 10 }, (_, i) => entrada(`t${i}`, `e${i}`))
+  const base = appendEntries(MANUALO, many)
+  const r = trimEntries(base, 3)
+  assert.ok(r.content.includes("NOTA MANUAL DO USUARIO"))
+  assert.ok(r.content.includes("## Decisoes"))
+  assert.ok(r.content.includes("## Rodape"))
+  assert.equal(parseMemoryFile(r.content).entries.length, 3)
+})
+
+test("upsertContext preserva o texto manual e as seções extras", () => {
+  const out = upsertContext(MANUALO, "novo contexto")
+  assert.ok(out.includes("NOTA MANUAL DO USUARIO"))
+  assert.ok(out.includes("## Decisoes"))
+  assert.ok(out.includes("## Rodape"))
+  assert.ok(out.includes("novo contexto"))
+})

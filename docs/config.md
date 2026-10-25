@@ -80,4 +80,6 @@ padrão — nunca derruba a sessão.
   `composer.json`, `Gemfile`, `*.sln`, `*.csproj`).
 - Nunca na home do usuário, nunca em `node_modules`, `.venv`, `dist`, `build`, `target` ou
   diretórios de sistema.
-- Nada é sobrescrito. `MEMORY.md` existente só sofre append.
+- Nada do que o usuário escreveu à mão é sobrescrito: o `MEMORY.md` só sofre append na seção
+  `## Registro`. Cabeçalho, seções extras e o conteúdo depois de `## Contexto do sistema` são
+  preservados a cada rewrite.

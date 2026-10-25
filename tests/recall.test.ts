@@ -46,6 +46,11 @@ test("recall sem memória nenhuma ainda é um bloco válido", () => {
   assert.ok(out.includes("memory_note"))
 })
 
+test("o recall cita o nome invocável da tool (com namespace)", () => {
+  const out = buildRecall({ project: "p", path: "/p", entries: [], context: "", maxInject: 15 })
+  assert.ok(out.includes("memoria.memory_note"), "o recall precisa citar o nome real da tool")
+})
+
 test("estimateTokens estima 4 caracteres por token", () => {
   assert.equal(estimateTokens("abcd"), 1)
   assert.equal(estimateTokens("abcde"), 2)

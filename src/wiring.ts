@@ -27,6 +27,12 @@ function eventTimestamp(value: unknown): string {
   return new Date().toISOString()
 }
 
+/** O system prompt já tem um bloco de memória? (duas instâncias do plugin, mesma sessão) */
+function alreadyInjected(system: unknown): boolean {
+  if (!Array.isArray(system)) return false
+  return system.some((part: any) => typeof part?.text === "string" && part.text.includes("<project-memory"))
+}
+
 /**
  * Setup do plugin.
  *
@@ -45,12 +51,17 @@ export async function setup(ctx: WiringContext): Promise<void> {
     const project = detectProjectName(root)
     const isProject = isProjectDir(root)
     const role = decideRole(root, hasLocalKit(layout.kitDir))
+    const projectConfig = readProjectConfig(layout.configFile)
 
-    // Arquivos da memória (só em pastas de projeto).
-    if (isProject) {
+    // Uma pasta com "enabled": false (o /mem forget grava isso) não recebe nada.
+    const enabled = projectConfig.enabled
+
+    // Arquivos da memória (só em pastas de projeto e habilitadas).
+    if (isProject && enabled) {
       ensureMemoryFile(layout.memoryFile, project)
-      const config = readProjectConfig(layout.configFile)
-      if (!config.project) writeProjectConfig(layout.configFile, { ...config, project })
+      if (!projectConfig.project) {
+        writeProjectConfig(layout.configFile, { ...projectConfig, project })
+      }
       // Bootstrap: o supervisor copia o kit para a pasta (ela passa a ser autossuficiente).
       if (role === "supervisor" && globalConfig.enabled && globalConfig.auto && !hasLocalKit(layout.kitDir)) {
         copyKit(layout.kitDir)
@@ -59,20 +70,38 @@ export async function setup(ctx: WiringContext): Promise<void> {
 
     const injected = new Set<string>()
     const transcripts = new Map<string, any[]>()
-    const sessionDirs = new Map<string, string>()
+    const sessionOwn = new Map<string, boolean>()
 
+    /**
+     * A sessão pertence a este projeto?
+     * Compara a identidade do projeto (projectID do host) e, sem ela, a raiz do
+     * projeto da sessão — uma sessão em `projeto/src/` é do projeto `projeto`.
+     */
     const sessionBelongsHere = async (sessionID: string): Promise<boolean> => {
-      const known = sessionDirs.get(sessionID)
-      if (known !== undefined) return known === "" || resolve(known) === resolve(root)
+      const known = sessionOwn.get(sessionID)
+      if (known !== undefined) return known
+      let result = false
       try {
         const session = await ctx.session.get({ sessionID })
-        const found =
-          (session as any)?.location?.directory ?? (session as any)?.directory ?? (session as any)?.cwd ?? ""
-        sessionDirs.set(sessionID, String(found))
-        return !found || resolve(String(found)) === resolve(root)
+        const sessionProjectID = (session as any)?.projectID
+        const instanceProjectID = ctx?.location?.project?.id
+        if (sessionProjectID && instanceProjectID) {
+          result = sessionProjectID === instanceProjectID
+        } else {
+          const sessionDir =
+            (session as any)?.location?.directory ?? (session as any)?.directory ?? (session as any)?.cwd
+          if (sessionDir) {
+            const sessionRoot = findProjectRoot(String(sessionDir))
+            result = sessionRoot
+              ? resolve(sessionRoot) === resolve(root)
+              : resolve(String(sessionDir)) === resolve(root)
+          }
+        }
       } catch {
-        return true
+        result = false
       }
+      sessionOwn.set(sessionID, result)
+      return result
     }
 
     await ctx.session.hook("context", async (event: any) => {
@@ -81,12 +110,17 @@ export async function setup(ctx: WiringContext): Promise<void> {
         if (!sessionID) return
         if (Array.isArray(event?.messages)) transcripts.set(sessionID, event.messages)
         if (injected.has(sessionID)) return
-        if (!isProject) return
+        if (!isProject || !enabled) return
         if (!(await sessionBelongsHere(sessionID))) return
 
         const current = readProjectConfig(layout.configFile)
         if (!current.enabled || !current.inject) return
         if (!existsSync(layout.memoryFile)) return
+        // Duas instâncias do plugin (global + local) injetariam o bloco duas vezes.
+        if (alreadyInjected(event?.system)) {
+          injected.add(sessionID)
+          return
+        }
 
         const parsed = parseMemoryFile(readMemoryText(layout.memoryFile))
         const recall = buildRecall({
@@ -116,13 +150,13 @@ export async function setup(ctx: WiringContext): Promise<void> {
             if (!sessionID) continue
             const messages = transcripts.get(sessionID)
             if (!messages) continue
-            if (!isProject) continue
+            if (!isProject || !enabled) continue
             if (!(await sessionBelongsHere(sessionID))) continue
 
             const current = readProjectConfig(layout.configFile)
             if (!current.enabled) continue
 
-            const facts = factsFromTranscript({ messages })
+            const facts = factsFromTranscript({ messages }, root)
             if (!facts.prompt && facts.files.length === 0 && facts.commands.length === 0) continue
 
             // O timestamp vem do evento: duas instâncias do plugin gravam a mesma
@@ -132,7 +166,7 @@ export async function setup(ctx: WiringContext): Promise<void> {
             const note = extractNote(facts.prompt)
             if (note) entries.push({ ts: now, kind: "nota", text: note })
 
-            appendToMemory(layout.memoryFile, current.project || project, entries, current.maxEntries)
+            await appendToMemory(layout.memoryFile, current.project || project, entries, current.maxEntries)
           } catch {
             // ignora falhas de captura
           }

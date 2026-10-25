@@ -83,3 +83,37 @@ test("summarizeFacts sem prompt devolve entrada vazia", () => {
   const entry = summarizeFacts({ prompt: "", files: [], commands: [] }, "2026-10-25T00:00:00Z")
   assert.equal(entry.text, "")
 })
+
+test("factsFromTranscript relativiza caminho absoluto dentro do projeto", () => {
+  const facts = factsFromTranscript(
+    {
+      messages: [
+        { id: "m1", role: "user", content: [{ type: "text", text: "x" }] },
+        {
+          id: "m2",
+          role: "assistant",
+          content: [{ type: "tool-call", id: "c1", name: "write", input: { path: "C:\\AI\\proj\\src\\auth.ts" } }],
+        },
+      ],
+    },
+    "C:\\AI\\proj",
+  )
+  assert.deepEqual(facts.files, ["src\\auth.ts"])
+})
+
+test("factsFromTranscript mantém caminho de fora do projeto", () => {
+  const facts = factsFromTranscript(
+    {
+      messages: [
+        { id: "m1", role: "user", content: [{ type: "text", text: "x" }] },
+        {
+          id: "m2",
+          role: "assistant",
+          content: [{ type: "tool-call", id: "c1", name: "write", input: { path: "C:\\outro\\arquivo.ts" } }],
+        },
+      ],
+    },
+    "C:\\AI\\proj",
+  )
+  assert.deepEqual(facts.files, ["C:\\outro\\arquivo.ts"])
+})

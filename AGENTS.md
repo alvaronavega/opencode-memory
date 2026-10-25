@@ -30,7 +30,9 @@ instalar.ps1/.sh    # instaladores manuais
 - **Zero dependências de runtime.** Só módulos nativos do Node e a API de plugin do OpenCode.
 - **Zero chamadas a LLM, rede ou serviço externo.** O plugin é determinístico.
 - **Nada de estado fora da pasta do projeto.** O único global é o supervisor (código, não dados).
-- **Nunca sobrescrever `MEMORY.md`.** Append apenas; escrita atômica (`.tmp` + rename).
+- **Nunca sobrescrever o que o usuário escreveu à mão.** Append apenas na seção `## Registro`;
+  cabeçalho, seções extras e rodapé do arquivo são preservados. Escrita atômica (`.tmp` único +
+  rename) e lock de arquivo, para que escritas concorrentes não percam entradas.
 - **Toda escrita em arquivo do usuário passa por `src/store.ts`.**
 - **Falha nunca derruba a sessão.** Todo handler fica dentro de `try/catch`.
 - **Português no texto de interface** (comandos, mensagens, docs). Código e identificadores em inglês.

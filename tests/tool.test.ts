@@ -64,3 +64,16 @@ test("a tool não grava quando a memória está desativada", async () => {
   assert.ok(!content.includes("não deveria gravar"))
   cleanup(dir)
 })
+
+test("a tool rejeita um tipo inválido", async () => {
+  const dir = tempProject()
+  const calls: any[] = []
+  await registerMemoryNote(fakeCtx(dir, calls))
+  const tool = findTool(calls)
+  const out = await tool.execute({ texto: "algo", tipo: "inventado" }, {})
+  assert.ok(out.content.toLowerCase().includes("tipo"))
+  const file = join(dir, "MEMORY.md")
+  const content = existsSync(file) ? readFileSync(file, "utf8") : ""
+  assert.ok(!content.includes("inventado"), "um tipo inválido não pode virar uma linha irreversível")
+  cleanup(dir)
+})

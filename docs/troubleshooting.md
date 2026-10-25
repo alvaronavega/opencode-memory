@@ -75,15 +75,16 @@ Verifique, nesta ordem:
 
 ## O `MEMORY.md` tem duas linhas iguais
 
-Cada turno é gravado uma vez. Se aparecer duplicado, é porque duas instâncias do plugin
-(esquecidos diferentes) gravaram a mesma linha com timestamps diferentes — o que acontece se
-você editou o arquivo à mão no meio de um turno. A linha duplicada pode ser apagada à mão; o
-formato é texto puro.
+Cada turno é gravado uma vez: o timestamp vem do evento, e o append deduplica linhas idênticas.
+A duplicata real vem de outro caminho — por exemplo, o mesmo prompt enviado duas vezes no mesmo
+segundo. A linha duplicada pode ser apagada à mão; o formato é texto puro.
 
 ## Quero desligar a memória neste projeto
 
 - `/mem off` — desliga só a injeção (continua gravando).
-- `/mem forget --yes` — apaga `MEMORY.md`, config e kit local.
+- `/mem forget --yes` — apaga `MEMORY.md` e o kit local, e **desativa** a memória nesta pasta
+  (o `.opencode/memory.json` fica com `"enabled": false`), para que ela não volte sozinha na
+  sessão seguinte. Para reativar: `/mem on`.
 - `"enabled": false` no `.opencode/memory.json` do projeto — desliga gravar e injetar.
 
 ## Quero que a memória pare de ser criada em pastas novas

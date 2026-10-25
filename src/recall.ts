@@ -43,7 +43,7 @@ function render(input: RecallInput, notes: MemoryEntry[], activities: MemoryEntr
     out.push(context.trim())
   }
   out.push("")
-  out.push("Se algo novo e não-óbvio for decidido, registre com a tool memory_note.")
+  out.push("Se algo novo e não-óbvio for decidido, registre com a tool memoria.memory_note.")
   out.push("Para o histórico completo, leia MEMORY.md.")
   out.push("</project-memory>")
   return out.join("\n")

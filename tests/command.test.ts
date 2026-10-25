@@ -1,6 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { registerMemCommand, HELP_TEXT } from "../src/command.ts"
 import { fakeCtx, tempProject, cleanup } from "./helpers.ts"
@@ -124,6 +125,27 @@ test("/mem doctor relata o estado do projeto", async () => {
   const out = await run("doctor", dir)
   assert.ok(out.includes("MEMORY.md"))
   cleanup(dir)
+})
+
+// --- I4: /mem init não pode criar memória na home nem em pasta de dependência ---
+
+test("/mem init recusa uma pasta de dependência sem projeto acima", async () => {
+  const base = mkdtempSync(join(tmpdir(), "oc-mem-dep-"))
+  const dep = join(base, "node_modules", "pkg")
+  mkdirSync(dep, { recursive: true })
+  const out = await run("init", dep)
+  assert.ok(/recus|não (pode|deve)|não cri/i.test(out), `esperava recusa, veio: ${out}`)
+  assert.equal(existsSync(join(dep, "MEMORY.md")), false)
+  cleanup(base)
+})
+
+test("/mem init --force cria mesmo assim", async () => {
+  const base = mkdtempSync(join(tmpdir(), "oc-mem-dep2-"))
+  const dep = join(base, "node_modules", "pkg")
+  mkdirSync(dep, { recursive: true })
+  const out = await run("init --force", dep)
+  assert.ok(existsSync(join(dep, "MEMORY.md")), `esperava criação forçada, veio: ${out}`)
+  cleanup(base)
 })
 
 test("a saída vai para a sessão como mensagem sintética", async () => {
