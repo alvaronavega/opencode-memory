@@ -6,24 +6,7 @@
   <img src="docs/banner.svg" alt="opencode-memory — memória por pasta para o OpenCode" width="880">
 </p>
 
-<details>
-<summary>ver o banner em ASCII (terminal)</summary>
-
-```
-╭─────────────────────────────────────────────────────────────────────────────────────────────╮
-│  ███  ████  ████  █   █  ████  ███  ███   ████        █   █ ████  █   █  ███  ████  █   █ │
-│ █   █ █   █ █     ██  █ █     █   █ █  █  █           ██ ██ █     ██ ██ █   █ █   █ █   █ │
-│ █   █ ████  ███   █ █ █ █     █   █ █  █  ███    ███  █ █ █ ███   █ █ █ █   █ ████   ███  │
-│ █   █ █     █     █  ██ █     █   █ █  █  █           █   █ █     █   █ █   █ █  █    █   │
-│  ███  █     ████  █   █  ████  ███  ███   ████        █   █ ████  █   █  ███  █   █   █   │
-│                                                                                             │
-│ memória por pasta para o OpenCode                                                         │
-│ MEMORY.md no projeto · recall no prompt · captura de cada turno                           │
-╰─────────────────────────────────────────────────────────────────────────────────────────────╯
-```
-
-</details>
-
+A versão em ASCII do banner (para o terminal) está em [`docs/banner.txt`](docs/banner.txt).
 
 Memória por pasta para o [OpenCode](https://opencode.ai) — local, determinística e portátil.
 
@@ -32,14 +15,12 @@ pendente e quais decisões foram tomadas. Sem repetir contexto, sem depender de 
 IA está em uso e sem gastar token com isso.
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│  C:\AI\meu-projeto\                                        │
-│                                                            │
-│  MEMORY.md                     ← a memória (texto puro)    │
-│  .opencode\                                                │
-│    memory.json                 ← config do projeto         │
-│    plugins\opencode-memory\    ← o plugin (a pasta viaja)  │
-└────────────────────────────────────────────────────────────┘
+C:\AI\meu-projeto\
+├── MEMORY.md                   ← a memória (texto puro, versionável)
+└── .opencode\
+    ├── memory.json             ← config do projeto
+    └── plugins\
+        └── opencode-memory\    ← o plugin (a pasta viaja)
 ```
 
 ## Por que
